@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQAir Indonesia - Indeks Kualitas Udara Real-Time</title>
+    <meta name="description" content="Dashboard pemantauan Indeks Kualitas Udara (AQI) dan polusi PM2.5 real-time di seluruh Indonesia berbasis standar US AQI IQAir.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS untuk Peta -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background Ambient Glow -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <div class="app-layout">
+        <!-- HEADER -->
+        <header class="navbar">
+            <div class="nav-brand">
+                <div class="logo-box">
+                    <span class="icon-core">🍃</span>
+                </div>
+                <div>
+                    <h1 class="brand-title">IQAir <span>Indonesia</span></h1>
+                    <p class="brand-sub">Sistem Informasi Indeks Kualitas Udara (US AQI & PM2.5) Real-Time</p>
+                </div>
+            </div>
+
+            <div class="nav-metrics">
+                <div class="metric-pill">
+                    <span class="status-dot pulsing"></span>
+                    <span class="metric-label">Standar:</span>
+                    <strong class="metric-val text-emerald">US EPA AQI (IQAir)</strong>
+                </div>
+                <div class="metric-pill">
+                    <span class="metric-label">Terakhir Update:</span>
+                    <strong class="metric-val" id="syncTimeBadge">Memuat...</strong>
+                </div>
+                <button id="btnRefreshData" class="btn-refresh" title="Perbarui Data Sekarang">
+                    <svg id="refreshIcon" class="spin-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    <span id="refreshText">Refresh</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- SEARCH BANNER: KHUSUS WILAYAH INDONESIA -->
+        <section class="search-banner">
+            <div class="search-banner-inner">
+                <div class="search-input-group">
+                    <div class="search-box-container" id="searchBoxContainer">
+                        <div class="search-icon-wrapper">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <input type="text" id="globalCitySearch" class="global-search-input" placeholder="Cari kota, kabupaten, atau daerah di Indonesia (misal: Lhokseumawe, Bandung, Surabaya, Malang)..." autocomplete="off" spellcheck="false">
+                        <button type="button" id="btnClearGlobalSearch" class="btn-clear-search" title="Bersihkan pencarian" aria-label="Bersihkan pencarian" style="display: none;">✕</button>
+                        <div class="search-scope-badge">
+                            <span class="flag-icon">🇮🇩</span>
+                            <span>Wilayah Indonesia</span>
+                        </div>
+
+                        <!-- AUTOCOMPLETE DROPDOWN HASIL PENCARIAN -->
+                        <div id="searchDropdown" class="search-dropdown" style="display: none;">
+                            <div class="dropdown-header">
+                                <span id="searchDropdownTitle">📍 Rekomendasi Wilayah Indonesia</span>
+                                <span id="searchDropdownCount" class="dropdown-count">33 Kota Tersedia</span>
+                            </div>
+                            <div id="searchDropdownList" class="dropdown-list">
+                                <!-- Hasil autocomplete akan dirender via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QUICK TAGS / SHORTCUT KOTA POPULER DI INDONESIA -->
+                <div class="quick-tags-bar">
+                    <span class="quick-tags-title">⚡ Akses Cepat:</span>
+                    <div class="quick-tags-scroll" id="quickTagsList">
+                        <button type="button" class="quick-tag-btn active" data-city="Jakarta">📍 Jakarta</button>
+                        <button type="button" class="quick-tag-btn" data-city="Lhokseumawe">📍 Lhokseumawe (PNL)</button>
+                        <button type="button" class="quick-tag-btn" data-city="Bandung">📍 Bandung</button>
+                        <button type="button" class="quick-tag-btn" data-city="Surabaya">📍 Surabaya</button>
+                        <button type="button" class="quick-tag-btn" data-city="Medan">📍 Medan</button>
+                        <button type="button" class="quick-tag-btn" data-city="Semarang">📍 Semarang</button>
+                        <button type="button" class="quick-tag-btn" data-city="Yogyakarta">📍 Yogyakarta</button>
+                        <button type="button" class="quick-tag-btn" data-city="Denpasar">📍 Denpasar</button>
+                        <button type="button" class="quick-tag-btn" data-city="Makassar">📍 Makassar</button>
+                        <button type="button" class="quick-tag-btn" data-city="Balikpapan">📍 Balikpapan</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DASHBOARD GRID -->
+        <main class="dashboard-grid">
+            <!-- PANEL KIRI: HERO AQI, PETA & TABEL DATA -->
+            <section class="left-panel">
+                <!-- HERO CARD: KOTA AKTIF (ICONIC IQAIR STYLE) -->
+                <div class="card hero-aqi-card" id="heroAqiContainer">
+                    <div class="hero-top-bar">
+                        <div class="city-selector-wrapper">
+                            <label for="citySelect" class="selector-label">📍 Pilih Kota Pemantauan:</label>
+                            <select id="citySelect" class="city-dropdown">
+                                <option value="Jakarta">Jakarta (DKI Jakarta)</option>
+                                <option value="Lhokseumawe">Lhokseumawe (Aceh - PNL)</option>
+                            </select>
+                        </div>
+                        <div class="hero-badge" id="heroBadgeStatus">Memuat...</div>
+                    </div>
+
+                    <div class="hero-aqi-body">
+                        <div class="aqi-display-box" id="aqiBox">
+                            <span class="aqi-emoji" id="heroEmoji">😷</span>
+                            <span class="aqi-number" id="heroAqiNum">-</span>
+                            <span class="aqi-unit">US AQI</span>
+                        </div>
+
+                        <div class="aqi-info-box">
+                            <h2 class="hero-city-name" id="heroCityName">Memuat Kota...</h2>
+                            <p class="hero-desc" id="heroDesc">Mengambil data polutan atmosfer terkini...</p>
+                            
+                            <!-- BREAKDOWN POLUTAN -->
+                            <div class="pollutant-grid">
+                                <div class="pollutant-item">
+                                    <span class="pollutant-name">PM2.5</span>
+                                    <strong class="pollutant-val" id="valPm25">-</strong>
+                                    <small class="pollutant-unit">µg/m³</small>
+                                </div>
+                                <div class="pollutant-item">
+                                    <span class="pollutant-name">PM10</span>
+                                    <strong class="pollutant-val" id="valPm10">-</strong>
+                                    <small class="pollutant-unit">µg/m³</small>
+                                </div>
+                                <div class="pollutant-item">
+                                    <span class="pollutant-name">Karbon Monoksida (CO)</span>
+                                    <strong class="pollutant-val" id="valCo">-</strong>
+                                    <small class="pollutant-unit">µg/m³</small>
+                                </div>
+                                <div class="pollutant-item">
+                                    <span class="pollutant-name">Nitrogen Dioksida (NO2)</span>
+                                    <strong class="pollutant-val" id="valNo2">-</strong>
+                                    <small class="pollutant-unit">µg/m³</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REKOMENDASI KESEHATAN IQAIR -->
+                    <div class="health-recommendations">
+                        <h4 class="rec-title">🛡️ Rekomendasi Kesehatan untuk Anda:</h4>
+                        <div class="rec-grid">
+                            <div class="rec-card" id="recMask">
+                                <span class="rec-icon">😷</span>
+                                <div>
+                                    <strong>Kenakan Masker</strong>
+                                    <p>Pakai masker saat bepergian ke luar ruangan.</p>
+                                </div>
+                            </div>
+                            <div class="rec-card" id="recWindow">
+                                <span class="rec-icon">🪟</span>
+                                <div>
+                                    <strong>Tutup Jendela</strong>
+                                    <p>Cegah udara kotor luar masuk ke dalam rumah.</p>
+                                </div>
+                            </div>
+                            <div class="rec-card" id="recPurifier">
+                                <span class="rec-icon">🍃</span>
+                                <div>
+                                    <strong>Pembersih Udara</strong>
+                                    <p>Operasikan Air Purifier dalam ruangan.</p>
+                                </div>
+                            </div>
+                            <div class="rec-card" id="recOutdoor">
+                                <span class="rec-icon">🚴</span>
+                                <div>
+                                    <strong>Aktivitas Fisik</strong>
+                                    <p id="recOutdoorText">Hindari olahraga berat di luar ruangan.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HEADER SEKSI KUALITAS UDARA ALA IQAIR ASLI -->
+                <div class="iqair-section-header">
+                    <div class="iqair-header-left">
+                        <div class="iqair-title-row">
+                            <span class="flag-icon-large">🇮🇩</span>
+                            <h2 class="iqair-title">Kualitas udara di Indonesia</h2>
+                        </div>
+                        <p class="iqair-subtitle">Indeks kualitas udara (AQI) dan polusi udara PM2.5 di Indonesia &bull; <span id="mapRealtimeClock">17.30, Okt 22</span></p>
+                        <div class="iqair-attribution-row">
+                            <span class="iqair-contributors-badge">
+                                <span class="attrib-logo">🍃</span> <strong>177 stasiun</strong> dari <strong>130 contributors</strong>
+                            </span>
+                            <span class="iqair-sponsor-text">1 stasiun disponsori oleh <span class="sponsor-highlight">The Foundation for Clean Air</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PETA KUALITAS UDARA IQAIR (OUTDOOR & INDOOR) -->
+                <div class="card map-card iqair-map-container" id="mapCardContainer">
+                    <div class="map-wrapper-iqair">
+                        <div id="air-quality-map" class="map-view-iqair"></div>
+
+                        <!-- FLOATING RIGHT CONTROLS: OUTDOOR & INDOOR (PERSIS IQAIR) -->
+                        <div class="map-floating-panel">
+                            <button class="map-control-btn btn-fullscreen" id="btnMapFullscreen" title="Layar Penuh" aria-label="Layar Penuh">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                </svg>
+                            </button>
+
+                            <div class="control-group-title">Outdoor</div>
+                            <div class="control-group">
+                                <button class="map-pill-btn active" id="btnToggleStations">
+                                    <span class="pill-radio-dot"></span>
+                                    <span class="pill-icon">📍</span>
+                                    <span>Stasiun kualitas udara</span>
+                                </button>
+                                <button class="map-pill-btn" id="btnToggleFire">
+                                    <span class="pill-icon">🔥</span>
+                                    <span>Kebakaran</span>
+                                    <span class="pill-count" id="fireHotspotCount">12</span>
+                                </button>
+                                <button class="map-pill-btn" id="btnToggleWind">
+                                    <span class="pill-icon">💨</span>
+                                    <span>Angin</span>
+                                </button>
+                                <button class="map-pill-btn" id="btnToggleWarning">
+                                    <span class="pill-icon">⚠️</span>
+                                    <span>Peringatan</span>
+                                </button>
+                            </div>
+
+                            <div class="control-group-title">Indoor</div>
+                            <div class="control-group">
+                                <button class="map-pill-btn" id="btnIndoorFacility">
+                                    <span class="pill-icon">🏢</span>
+                                    <span>Fasilitas Udara Bersih</span>
+                                    <span class="pill-arrow">▾</span>
+                                </button>
+                                <button class="map-pill-btn" id="btnIndoorSensor">
+                                    <span class="pill-icon">🎛️</span>
+                                    <span>Sensor Dalam Ruangan</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- FLOATING BOTTOM COLOR SCALE BAR (PERSIS IQAIR ASLI) -->
+                        <div class="iqair-scale-bar-bottom">
+                            <div class="scale-color-item scale-col-baik">Baik</div>
+                            <div class="scale-color-item scale-col-sedang">Sedang</div>
+                            <div class="scale-color-item scale-col-sensitif">Tidak sehat bagi kelompok sensitif</div>
+                            <div class="scale-color-item scale-col-tidaksehat">Tidak sehat</div>
+                            <div class="scale-color-item scale-col-sangattidaksehat">Sangat tidak sehat</div>
+                            <div class="scale-color-item scale-col-berbahaya">Berbahaya</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABS CONTAINER -->
+                <div class="card tabs-card">
+                    <nav class="nav-tabs">
+                        <button class="tab-btn active" data-tab="tab-terbersih" id="btn-tab-terbersih">
+                            <span class="tab-icon">🌿</span>
+                            <span>10 Kota Paling Bersih</span>
+                        </button>
+                        <button class="tab-btn" data-tab="tab-terpolusi" id="btn-tab-terpolusi">
+                            <span class="tab-icon">🔥</span>
+                            <span>10 Kota Paling Terpolusi</span>
+                        </button>
+                        <button class="tab-btn" data-tab="tab-semua" id="btn-tab-semua">
+                            <span class="tab-icon">📋</span>
+                            <span>Semua Kota (33)</span>
+                        </button>
+                        <button class="tab-btn" data-tab="tab-api" id="btn-tab-api">
+                            <span class="tab-icon">💻</span>
+                            <span>Fetch API Tester</span>
+                        </button>
+                    </nav>
+
+                    <!-- TAB 1: 10 KOTA PALING BERSIH -->
+                    <div class="tab-pane active" id="tab-terbersih">
+                        <div class="pane-header">
+                            <h4>Peringkat Kota dengan Udara Paling Bersih di Indonesia</h4>
+                            <p>Urutan kota dengan tingkat polusi terendah dan kualitas udara paling segar saat ini.</p>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Peringkat</th>
+                                        <th>Kota / Daerah</th>
+                                        <th>Provinsi</th>
+                                        <th>US AQI</th>
+                                        <th>Status Kualitas Udara</th>
+                                        <th>PM2.5</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTerbersih">
+                                    <tr><td colspan="7" class="text-center">Memuat data ranking...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: 10 KOTA PALING TERPOLUSI -->
+                    <div class="tab-pane" id="tab-terpolusi">
+                        <div class="pane-header">
+                            <h4>Peringkat Kota Paling Terpolusi di Indonesia Saat Ini</h4>
+                            <p>Urutan kota berdasarkan Indeks Kualitas Udara (US AQI) tertinggi.</p>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Peringkat</th>
+                                        <th>Kota / Daerah</th>
+                                        <th>Provinsi</th>
+                                        <th>US AQI</th>
+                                        <th>Status Kualitas Udara</th>
+                                        <th>PM2.5</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTerpolusi">
+                                    <tr><td colspan="7" class="text-center">Memuat data ranking...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: SEMUA KOTA -->
+                    <div class="tab-pane" id="tab-semua">
+                        <div class="pane-header flex-between tab-search-header">
+                            <div>
+                                <h4>Data Lengkap Kualitas Udara Seluruh Indonesia</h4>
+                                <p>Cari kota di Indonesia untuk melihat detail konsentrasi polusi udara.</p>
+                            </div>
+                            <div class="tab-search-controls">
+                                <div class="table-search-box">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    <input type="text" id="searchCityInput" class="search-input" placeholder="Cari kota di tabel (misal: Lhokseumawe)..." autocomplete="off">
+                                    <button type="button" id="btnClearTableSearch" class="btn-clear-table-search" title="Bersihkan filter" style="display: none;">✕</button>
+                                </div>
+                                <span id="tableCountBadge" class="table-count-badge">33 Kota</span>
+                            </div>
+                        </div>
+
+                        <!-- FILTER KATEGORI AQI -->
+                        <div class="table-filters-container">
+                            <span class="filter-label">Filter Status:</span>
+                            <div class="filter-pills" id="categoryFilterPills">
+                                <button type="button" class="filter-pill active" data-filter="all">Semua</button>
+                                <button type="button" class="filter-pill" data-filter="Baik">🟢 Baik (0-50)</button>
+                                <button type="button" class="filter-pill" data-filter="Sedang">🟡 Sedang (51-100)</button>
+                                <button type="button" class="filter-pill" data-filter="Tidak Sehat bagi Sensitif">🟠 Sensitif (101-150)</button>
+                                <button type="button" class="filter-pill" data-filter="Tidak Sehat">🔴 Tidak Sehat (151+)</button>
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Kota</th>
+                                        <th>Provinsi</th>
+                                        <th>US AQI</th>
+                                        <th>Kategori</th>
+                                        <th>PM2.5</th>
+                                        <th>PM10</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodySemuaKota">
+                                    <tr><td colspan="8" class="text-center">Memuat seluruh kota...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: API TESTER ("FETCH SEPERTI PDDIKTI") -->
+                    <div class="tab-pane" id="tab-api">
+                        <div class="api-playground">
+                            <div class="api-intro">
+                                <h4>Dokumentasi & Tester Fetch API Kualitas Udara</h4>
+                                <p>Sama persis seperti pada PDDIKTI, kamu bisa memanggil file API ini secara langsung di JavaScript menggunakan <code>fetch()</code>:</p>
+                            </div>
+
+                            <div class="endpoint-bar">
+                                <div class="http-method">GET</div>
+                                <select id="apiEndpointSelect" class="endpoint-select">
+                                    <option value="api.php">api.php (Semua Data Kualitas Udara Indonesia & Cache)</option>
+                                    <option value="data.json">data.json (File JSON Langsung)</option>
+                                    <option value="iqair_cache.json">iqair_cache.json (File Cache JSON)</option>
+                                </select>
+                                <button id="btnSendApi" class="btn-primary">
+                                    <span>Kirim Fetch</span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                </button>
+                            </div>
+
+                            <div class="code-preview-card">
+                                <div class="code-header">
+                                    <span>Contoh Pemanggilan di JavaScript (Frontend)</span>
+                                    <button class="btn-copy" id="btnCopyCode">Salin Kode</button>
+                                </div>
+                                <pre><code id="codeSnippet">// Mengambil data kualitas udara IQAir:
+fetch('api.php')
+  .then(res => res.json())
+  .then(data => {
+    console.log('Kota Terpolusi:', data.data.ringkasan.kotaTerpolusi.kota);
+    console.log('AQI:', data.data.ringkasan.kotaTerpolusi.aqi);
+    console.log('PM2.5:', data.data.ringkasan.kotaTerpolusi.polutan.pm25);
+  });</code></pre>
+                            </div>
+
+                            <div class="json-viewer-card">
+                                <div class="code-header">
+                                    <div class="flex-center gap-2">
+                                        <span>Output Respon (JSON)</span>
+                                        <span class="badge badge-status" id="apiStatusBadge">200 OK</span>
+                                        <span class="badge badge-time" id="apiTimeBadge">0 ms</span>
+                                    </div>
+                                    <button class="btn-copy" id="btnCopyJson">Salin JSON</button>
+                                </div>
+                                <pre class="json-code-box"><code id="jsonOutput">// Klik "Kirim Fetch" di atas untuk menguji API...</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PANEL KANAN: SKALA IQAIR & TIPS -->
+            <aside class="right-panel">
+                <!-- SKALA AQI IQAIR RESMI -->
+                <div class="card scale-card">
+                    <div class="card-header">
+                        <h3>Skala Kualitas Udara IQAir</h3>
+                    </div>
+                    <ul class="aqi-scale-list">
+                        <li class="scale-item scale-good">
+                            <div class="scale-range">0 - 50</div>
+                            <div>
+                                <strong>Baik</strong>
+                                <small>Kualitas udara memuaskan</small>
+                            </div>
+                        </li>
+                        <li class="scale-item scale-moderate">
+                            <div class="scale-range">51 - 100</div>
+                            <div>
+                                <strong>Sedang</strong>
+                                <small>Dapat diterima untuk umum</small>
+                            </div>
+                        </li>
+                        <li class="scale-item scale-sensitive">
+                            <div class="scale-range">101 - 150</div>
+                            <div>
+                                <strong>Tidak Sehat bagi Sensitif</strong>
+                                <small>Risiko untuk anak & lansia</small>
+                            </div>
+                        </li>
+                        <li class="scale-item scale-unhealthy">
+                            <div class="scale-range">151 - 200</div>
+                            <div>
+                                <strong>Tidak Sehat</strong>
+                                <small>Mulai berdampak bagi publik</small>
+                            </div>
+                        </li>
+                        <li class="scale-item scale-very-unhealthy">
+                            <div class="scale-range">201 - 300</div>
+                            <div>
+                                <strong>Sangat Tidak Sehat</strong>
+                                <small>Peringatan darurat kesehatan</small>
+                            </div>
+                        </li>
+                        <li class="scale-item scale-hazardous">
+                            <div class="scale-range">301+</div>
+                            <div>
+                                <strong>Berbahaya</strong>
+                                <small>Dampak kesehatan tingkat serius</small>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- TENTANG PM2.5 -->
+                <div class="card guide-card">
+                    <div class="card-header">
+                        <h3>Apa Itu PM2.5?</h3>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px;">
+                        <strong>PM2.5</strong> adalah partikel mikroskopis di udara yang berdiameter lebih kecil dari 2.5 mikron (sekitar 30x lebih kecil dari sehelai rambut).
+                    </p>
+                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                        Partikel ini dapat menembus saluran napas hingga masuk ke paru-paru dan peredaran darah, terutama bersumber dari emisi kendaraan bermotor dan pembakaran industri.
+                    </p>
+                </div>
+            </aside>
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <p>&copy; 2026 IQAir Indonesia Monitor &bull; Standar US AQI &bull; Politeknik Negeri Lhokseumawe (PNL)</p>
+        </footer>
+    </div>
+
+    <!-- 1. Fallback Data Lokal (data.js) -->
+    <script src="data.js"></script>
+    <!-- 2. Leaflet Map JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- 3. Script Utama -->
+    <script src="script.js"></script>
+</body>
+</html>
